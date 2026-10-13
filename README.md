@@ -92,3 +92,7 @@ src/drawbot/
   tip hovers 0.5 mm above the paper rather than making physical contact.
 - Link lengths and paper placement appear in both the xacro and
   `kinematics.py`; change them together.
+
+## License
+
+MIT - see [LICENSE](LICENSE).
