@@ -1,0 +1,208 @@
+<?xml version="1.0"?>
+<!--
+  Drawbot: a two-link pen plotter arm.
+
+    shoulder_joint  NEMA 17 on the base board, turns link1
+    elbow_joint     NEMA 17 hung under the end of link1, turns link2
+    pen_lift_joint  hobby servo at the end of link2, tilts the pen off the paper
+
+  Keep L1 / L2 / paper placement in sync with drawbot/kinematics.py.
+-->
+<robot name="drawbot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="L1" value="0.14"/>
+  <xacro:property name="L2" value="0.14"/>          <!-- elbow axis to pen tip -->
+  <xacro:property name="pen_offset" value="0.02"/>  <!-- lift hinge to pen axis -->
+  <xacro:property name="link_w" value="0.022"/>
+  <xacro:property name="link_t" value="0.006"/>
+  <xacro:property name="nema" value="0.042"/>       <!-- NEMA 17 faceplate -->
+  <xacro:property name="nema_h" value="0.040"/>
+  <xacro:property name="board_t" value="0.010"/>
+  <xacro:property name="shoulder_z" value="0.057"/>
+  <xacro:property name="hinge_z" value="0.071"/>    <!-- lift hinge height above ground -->
+  <xacro:property name="tip_clearance" value="0.0005"/>
+  <xacro:property name="paper_top" value="${board_t + 0.0005}"/>
+
+  <material name="wood"><color rgba="0.72 0.58 0.40 1"/></material>
+  <material name="paper"><color rgba="0.97 0.97 0.95 1"/></material>
+  <material name="motor"><color rgba="0.12 0.12 0.13 1"/></material>
+  <material name="steel"><color rgba="0.75 0.75 0.78 1"/></material>
+  <material name="arm"><color rgba="0.95 0.55 0.10 1"/></material>
+  <material name="servo"><color rgba="0.10 0.30 0.80 1"/></material>
+  <material name="pen"><color rgba="0.80 0.10 0.10 1"/></material>
+
+  <xacro:macro name="box_inertial" params="m x y z *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(y*y+z*z)/12}" iyy="${m*(x*x+z*z)/12}" izz="${m*(x*x+y*y)/12}"
+               ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="nema17" params="x z">
+    <visual>
+      <origin xyz="${x} 0 ${z}"/>
+      <geometry><box size="${nema} ${nema} ${nema_h}"/></geometry>
+      <material name="motor"/>
+    </visual>
+    <visual>
+      <origin xyz="${x} 0 ${z + nema_h/2 + 0.006}"/>
+      <geometry><cylinder radius="0.0025" length="0.012"/></geometry>
+      <material name="steel"/>
+    </visual>
+  </xacro:macro>
+
+  <!-- ================= base: board, paper, shoulder motor ================= -->
+  <link name="world"/>
+  <joint name="world_fixed" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0.11 0 ${board_t/2}"/>
+      <geometry><box size="0.32 0.30 ${board_t}"/></geometry>
+      <material name="wood"/>
+    </visual>
+    <visual>
+      <origin xyz="0.164 0 ${board_t + 0.00025}"/>
+      <geometry><box size="0.148 0.210 0.0005"/></geometry>
+      <material name="paper"/>
+    </visual>
+    <xacro:nema17 x="0" z="${board_t + nema_h/2}"/>
+    <collision>
+      <origin xyz="0.11 0 ${board_t/2}"/>
+      <geometry><box size="0.32 0.30 ${board_t}"/></geometry>
+    </collision>
+    <xacro:box_inertial m="1.0" x="0.32" y="0.30" z="${board_t}">
+      <origin xyz="0.11 0 ${board_t/2}"/>
+    </xacro:box_inertial>
+  </link>
+
+  <!-- ================= link1 (carries the elbow motor) ================= -->
+  <joint name="shoulder_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="link1"/>
+    <origin xyz="0 0 ${shoulder_z}"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.6" upper="2.6" effort="5.0" velocity="6.0"/>
+    <dynamics damping="0.01"/>
+  </joint>
+
+  <link name="link1">
+    <visual>
+      <origin xyz="${L1/2} 0 ${link_t/2}"/>
+      <geometry><box size="${L1 + link_w} ${link_w} ${link_t}"/></geometry>
+      <material name="arm"/>
+    </visual>
+    <xacro:nema17 x="${L1}" z="${-nema_h/2}"/>
+    <xacro:box_inertial m="0.32" x="${L1}" y="${nema}" z="${nema_h}">
+      <origin xyz="${L1*0.85} 0 -0.012"/>
+    </xacro:box_inertial>
+  </link>
+
+  <!-- ================= link2 (carries the pen-lift servo) ================= -->
+  <joint name="elbow_joint" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <origin xyz="${L1} 0 ${link_t + 0.002}"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.7" upper="2.7" effort="5.0" velocity="6.0"/>
+    <dynamics damping="0.01"/>
+  </joint>
+
+  <link name="link2">
+    <visual>
+      <origin xyz="${(L2 - pen_offset)/2 - 0.005} 0 ${link_t/2}"/>
+      <geometry><box size="${L2 - pen_offset + link_w - 0.010} ${link_w} ${link_t}"/></geometry>
+      <material name="arm"/>
+    </visual>
+    <visual>
+      <origin xyz="${L2 - pen_offset - 0.018} 0 ${link_t + 0.011}"/>
+      <geometry><box size="0.023 0.012 0.022"/></geometry>
+      <material name="servo"/>
+    </visual>
+    <xacro:box_inertial m="0.05" x="${L2}" y="${link_w}" z="0.02">
+      <origin xyz="${L2/2} 0 0.005"/>
+    </xacro:box_inertial>
+  </link>
+
+  <!-- ================= pen holder, tilted up by the servo ================= -->
+  <xacro:property name="tip_z" value="${paper_top + tip_clearance - hinge_z}"/>
+
+  <joint name="pen_lift_joint" type="revolute">
+    <parent link="link2"/>
+    <child link="pen_holder"/>
+    <origin xyz="${L2 - pen_offset} 0 ${hinge_z - shoulder_z - link_t - 0.002}"/>
+    <axis xyz="0 -1 0"/>   <!-- positive angle lifts the pen -->
+    <limit lower="0.0" upper="0.6" effort="1.0" velocity="8.0"/>
+    <dynamics damping="0.005"/>
+  </joint>
+
+  <link name="pen_holder">
+    <visual>
+      <origin xyz="${pen_offset/2} 0 0"/>
+      <geometry><box size="${pen_offset + 0.014} 0.014 0.008"/></geometry>
+      <material name="servo"/>
+    </visual>
+    <visual>
+      <origin xyz="${pen_offset} 0 ${tip_z + 0.004 + 0.035}"/>
+      <geometry><cylinder radius="0.004" length="0.070"/></geometry>
+      <material name="pen"/>
+    </visual>
+    <visual>
+      <origin xyz="${pen_offset} 0 ${tip_z + 0.002}"/>
+      <geometry><cylinder radius="0.001" length="0.004"/></geometry>
+      <material name="motor"/>
+    </visual>
+    <xacro:box_inertial m="0.015" x="0.02" y="0.02" z="0.07">
+      <origin xyz="${pen_offset} 0 -0.02"/>
+    </xacro:box_inertial>
+  </link>
+
+  <joint name="pen_tip_fixed" type="fixed">
+    <parent link="pen_holder"/>
+    <child link="pen_tip"/>
+    <origin xyz="${pen_offset} 0 ${tip_z}"/>
+  </joint>
+  <link name="pen_tip"/>
+
+  <!-- ================= Gazebo ================= -->
+  <!--
+    Steppers and hobby servos are position devices, so each joint is driven by
+    a velocity-limited position controller rather than a tuned effort PID.
+    The joint effort limits above are deliberately generous (a real NEMA 17
+    holds about 0.4 N.m): at the true figure the simulated joint rings on every
+    microstep, where a real stepper's detent holds it rigidly.
+  -->
+  <xacro:macro name="position_drive" params="joint topic max_vel">
+    <gazebo>
+      <plugin filename="gz-sim-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>${joint}</joint_name>
+        <topic>${topic}</topic>
+        <use_velocity_commands>true</use_velocity_commands>
+        <cmd_max>${max_vel}</cmd_max>
+        <cmd_min>${-max_vel}</cmd_min>
+      </plugin>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:position_drive joint="shoulder_joint" topic="/drawbot/shoulder/cmd_pos" max_vel="6.0"/>
+  <xacro:position_drive joint="elbow_joint" topic="/drawbot/elbow/cmd_pos" max_vel="6.0"/>
+  <xacro:position_drive joint="pen_lift_joint" topic="/drawbot/pen_lift/cmd_pos" max_vel="8.0"/>
+
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+      <topic>/drawbot/joint_states</topic>
+      <update_rate>100</update_rate>
+      <joint_name>shoulder_joint</joint_name>
+      <joint_name>elbow_joint</joint_name>
+      <joint_name>pen_lift_joint</joint_name>
+    </plugin>
+  </gazebo>
+
+</robot>
